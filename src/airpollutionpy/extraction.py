@@ -30,17 +30,58 @@ import warnings
 import traceback
 warnings.filterwarnings('ignore')
 
-def initialize_earth_engine():
-    """
-    Authenticate and initialize Earth Engine.
+def initialize_earth_engine(project=None):
+    """Authenticate and initialize Google Earth Engine.
+
+    Attempts to initialize the Earth Engine client. If the environment is not
+    authenticated the function will call ``ee.Authenticate()`` and retry
+    initialization. If a Google Cloud project id is provided it tries to
+    initialize with that project.
+
+    Args:
+        project (str, optional): Google Cloud Project ID to initialize EE
+            with. If ``None`` the function will attempt a default
+            initialization.
+
+    Raises:
+        Exception: Re-raises the final initialization error so callers can
+            handle it (for example in batch jobs).
+
+    Example:
+        >>> initialize_earth_engine('my-gcp-project')
     """
     try:
-        ee.Initialize()
+        if project:
+            ee.Initialize(project=project)
+        else:
+            ee.Initialize()
         print("Earth Engine already initialized")
-    except Exception:
+    except Exception as e:
+        print(f"Initial error: {str(e)[:100]}...")
+        print("Authenticating with Earth Engine...")
         ee.Authenticate()
-        ee.Initialize()
-        print("Earth Engine initialized")
+        
+        # Try with project if provided
+        if project:
+            try:
+                ee.Initialize(project=project)
+                print(f"Earth Engine initialized with project: {project}")
+                return
+            except Exception as project_error:
+                print(f"Failed with project {project}: {str(project_error)[:100]}...")
+        
+        # Try without project (legacy mode)
+        try:
+            ee.Initialize()
+            print("Earth Engine initialized without project")
+        except Exception as no_project_error:
+            print(f"Failed without project: {str(no_project_error)[:100]}...")
+            print("\nTo fix this issue:")
+            print("1. Make sure you have access to Google Earth Engine")
+            print("2. Create a Google Cloud Project at https://console.cloud.google.com/")
+            print("3. Enable the Earth Engine API for your project")
+            print("4. Pass your project ID to initialize_earth_engine(project='your-project-id')")
+            raise no_project_error
 
 def get_no2_collection(collection_type="OFFL"):
     """
@@ -792,35 +833,3 @@ def main(args):
         return None
     
     print("Processing complete!")
-
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(description="Extract and process NO2 data from Sentinel-5P.")
-    
-#     # Required arguments
-#     parser.add_argument("--start_date", required=True, help="Start date in YYYY-MM-DD format")
-#     parser.add_argument("--end_date", required=True, help="End date in YYYY-MM-DD format")
-#     parser.add_argument("--output_file", required=True, help="Output file name (CSV)")
-    
-#     # Optional arguments
-#     parser.add_argument("--aoi_file", help="Shapefile for area of interest")
-#     parser.add_argument("--admin_file", help="Shapefile for administrative boundaries")
-#     parser.add_argument("--description", default="NO2_extraction", help="Description for the export task")
-#     parser.add_argument("--temporal_resolution", default="monthly", 
-#                         choices=["daily", "monthly", "annual"], 
-#                         help="Temporal resolution for processing")
-#     parser.add_argument("--spatial_resolution", default="native", 
-#                         choices=["native", "admin"], 
-#                         help="Spatial resolution for processing")
-#     parser.add_argument("--collection_type", default="OFFL", 
-#                         choices=["NRTI", "OFFL"], 
-#                         help="Collection type (NRTI or OFFL)")
-#     parser.add_argument("--export_type", default="Drive", 
-#                         choices=["DataFrame", "Drive", "GCS"], 
-#                         help="Export type")
-#     parser.add_argument("--destination", help="Google Drive folder or GCS bucket name")
-#     parser.add_argument("--return_df", action="store_true", help="Return DataFrame in addition to export")
-    
-#     args = parser.parse_args()
-    
-#     # Run the main function
-#     main(args)
